@@ -182,7 +182,7 @@ fn format_variant(v: &Variant, parent_style: NamingStyle) -> String {
     if let Some(s) = get_variant_alias(v) {
         return s;
     }
-    
+
     let own_style = get_naming_style(v.attrs.iter());
 
     match own_style {
