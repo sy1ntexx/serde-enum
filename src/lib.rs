@@ -1,14 +1,29 @@
 use syn::*;
 use quote::quote;
 
+use std::collections::HashMap;
+use lazy_static::lazy_static;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum NamingStyle {
     SnakeCase,
     CamelCase,
+    ScreamingSnakeCase,
     None,
+}
+
+lazy_static! {
+    static ref NAME_MAP: HashMap<NamingStyle, fn(&str) -> String> = {
+        let mut m = HashMap::new();
+
+        // I have no actual idea why this is working like that, and why I need this cast
+        m.insert(NamingStyle::SnakeCase, to_snake_case as fn(&str) -> String);
+        m.insert(NamingStyle::CamelCase, to_camel_case);
+        m.insert(NamingStyle::ScreamingSnakeCase, to_screaming_snake_case);
+        m
+    };
 }
 
 #[proc_macro_derive(Serialize_enum, attributes(serde))]
@@ -78,6 +93,7 @@ fn get_naming_style<'a>(target: impl Iterator<Item = &'a Attribute>) -> NamingSt
                                         return match s.value().as_str() {
                                             "snake_case" => NamingStyle::SnakeCase,
                                             "camelCase" => NamingStyle::CamelCase,
+                                            "SCREAMING_SNAKE_CASE" => NamingStyle::ScreamingSnakeCase,
                                             _ => {
                                                 panic!(
                                                     "Unsupported style. \
@@ -134,17 +150,17 @@ fn create_de_arms(target: &DataEnum, n: NamingStyle) -> impl Iterator<Item = Tok
     })
 }
 
-fn format_variant(v: &Variant, ns: NamingStyle) -> String {
-    match get_naming_style(v.attrs.iter()) {
-        NamingStyle::SnakeCase => return to_snake_case(v.ident.to_string().as_str()),
-        NamingStyle::CamelCase => return to_camel_case(v.ident.to_string().as_str()),
-        _ => {}
-    }
+fn format_variant(v: &Variant, parent_style: NamingStyle) -> String {
+    let own_style = get_naming_style(v.attrs.iter());
 
-    match ns {
-        NamingStyle::SnakeCase => to_snake_case(v.ident.to_string().as_str()),
-        NamingStyle::CamelCase => to_camel_case(v.ident.to_string().as_str()),
-        NamingStyle::None => v.ident.to_string(),
+    match own_style {
+        NamingStyle::None => {
+            match parent_style {
+                NamingStyle::None => { v.ident.to_string() }
+                ps => { NAME_MAP.get(&ps).unwrap()(&v.ident.to_string()) }
+            }
+        }
+        os => { NAME_MAP.get(&os).unwrap()(&v.ident.to_string()) }
     }
 }
 
@@ -171,4 +187,14 @@ fn to_camel_case(v: &str) -> String {
         .char_indices()
         .map(|(i, c)| if i == 0 { c.to_ascii_lowercase() } else { c })
         .collect()
+}
+
+fn to_screaming_snake_case(v: &str) -> String {
+    v.char_indices().fold(String::with_capacity(v.len()), |mut s, (i, c)| {
+        if c.is_uppercase() && i != 0 {
+            s.push('_');
+        }
+        s.push(c.to_ascii_uppercase());
+        s
+    })
 }

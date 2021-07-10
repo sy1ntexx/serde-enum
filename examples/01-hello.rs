@@ -1,10 +1,10 @@
 use serde_enum::{Deserialize_enum, Serialize_enum};
 
 #[derive(Serialize_enum, Deserialize_enum)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 enum Something {
     SomeVariant,
-    OtherVaiant,
+    OtherVariant,
 }
 
 // impl serde_enum::serde::Serialize for Something {
@@ -14,7 +14,7 @@ enum Something {
 //     {
 //         match self {
 //             Self::SomeVariant => serializer.serialize_str("someVariant"),
-//             Self::OtherVaiant => serializer.serialize_str("otherVaiant"),
+//             Self::OtherVariant => serializer.serialize_str("OtherVariant"),
 //         }
 //     }
 // }
@@ -27,13 +27,11 @@ enum Something {
 //         Ok(
 //             match <&str>::deserialize(deserializer)? {
 //                 "someVariant" => Self::SomeVariant,
-//                 "otherVaiant" => Self::OtherVaiant,
+//                 "OtherVariant" => Self::OtherVariant,
 //                 _ => { unimplemented!() }
 //             }
 //         )
 //     }
 // }
 
-fn main() {
-    
-}
+fn main() {}
