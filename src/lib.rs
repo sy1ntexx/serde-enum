@@ -26,6 +26,35 @@ lazy_static! {
     };
 }
 
+#[proc_macro_derive(ToString)]
+pub fn to_string_enum(item: TokenStream) -> TokenStream {
+    let target = parse_macro_input!(item as DeriveInput);
+    let data = get_enum_from_input(&target);
+
+    let ident = &target.ident;
+
+    let style = get_naming_style(target.attrs.iter());
+
+    let to_str_arms = create_to_str_arms(&data, style);
+
+    let out = quote! {
+        impl std::convert::From<&#ident> for &'static str {
+            fn from(v: &#ident) -> &'static str {
+                match v {
+                    #(#ident::#to_str_arms),*
+                }
+            }
+        }
+
+        impl std::string::ToString for #ident {
+            fn to_string(&self) -> String {
+                <&#ident as std::convert::Into<&'static str>>::into(self).to_string()
+            }
+        }
+    };
+    out.into()
+}
+
 #[proc_macro_derive(Serialize_enum, attributes(serde))]
 pub fn serialize_enum(item: TokenStream) -> TokenStream {
     let target = parse_macro_input!(item as DeriveInput);
@@ -161,6 +190,17 @@ fn create_ser_arms(target: &DataEnum, n: NamingStyle) -> impl Iterator<Item = To
 
         quote! {
             Self::#ident => { serializer.serialize_str(#value) }
+        }
+    })
+}
+
+fn create_to_str_arms(target: &DataEnum, n: NamingStyle) -> impl Iterator<Item = TokenStream2> {
+    target.variants.clone().into_iter().map(move |v| {
+        let ident = &v.ident;
+        let value = format_variant(&v, n);
+
+        quote! {
+            #ident => #value
         }
     })
 }
