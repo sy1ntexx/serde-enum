@@ -3,6 +3,7 @@ use serde_enum::{Deserialize_enum, Serialize_enum};
 #[derive(Serialize_enum, Deserialize_enum)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 enum Something {
+    #[serde(name = "HiddenNotFormatted")]
     SomeVariant,
     OtherVariant,
 }

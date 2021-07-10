@@ -1,10 +1,10 @@
-use syn::*;
 use quote::quote;
+use syn::*;
 
-use std::collections::HashMap;
 use lazy_static::lazy_static;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum NamingStyle {
@@ -93,7 +93,9 @@ fn get_naming_style<'a>(target: impl Iterator<Item = &'a Attribute>) -> NamingSt
                                         return match s.value().as_str() {
                                             "snake_case" => NamingStyle::SnakeCase,
                                             "camelCase" => NamingStyle::CamelCase,
-                                            "SCREAMING_SNAKE_CASE" => NamingStyle::ScreamingSnakeCase,
+                                            "SCREAMING_SNAKE_CASE" => {
+                                                NamingStyle::ScreamingSnakeCase
+                                            }
                                             _ => {
                                                 panic!(
                                                     "Unsupported style. \
@@ -111,6 +113,32 @@ fn get_naming_style<'a>(target: impl Iterator<Item = &'a Attribute>) -> NamingSt
         }
     }
     NamingStyle::None
+}
+
+fn get_variant_alias(v: &Variant) -> Option<String> {
+    for a in v.attrs.iter() {
+        if let Some(i) = a.path.get_ident() {
+            if i == "serde" {
+                if let Ok(ExprParen { expr, .. }) = parse2::<ExprParen>(a.tokens.clone()) {
+                    if let Expr::Assign(ea) = expr.as_ref() {
+                        if let Expr::Path(ep) = ea.left.as_ref() {
+                            if let Some(i) = ep.path.get_ident() {
+                                if i == "name" {
+                                    if let Expr::Lit(ExprLit {
+                                        lit: Lit::Str(s), ..
+                                    }) = ea.right.as_ref()
+                                    {
+                                        return Some(s.value());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 fn get_enum_from_input(target: &DeriveInput) -> DataEnum {
@@ -151,16 +179,18 @@ fn create_de_arms(target: &DataEnum, n: NamingStyle) -> impl Iterator<Item = Tok
 }
 
 fn format_variant(v: &Variant, parent_style: NamingStyle) -> String {
+    if let Some(s) = get_variant_alias(v) {
+        return s;
+    }
+    
     let own_style = get_naming_style(v.attrs.iter());
 
     match own_style {
-        NamingStyle::None => {
-            match parent_style {
-                NamingStyle::None => { v.ident.to_string() }
-                ps => { NAME_MAP.get(&ps).unwrap()(&v.ident.to_string()) }
-            }
-        }
-        os => { NAME_MAP.get(&os).unwrap()(&v.ident.to_string()) }
+        NamingStyle::None => match parent_style {
+            NamingStyle::None => v.ident.to_string(),
+            ps => NAME_MAP.get(&ps).unwrap()(&v.ident.to_string()),
+        },
+        os => NAME_MAP.get(&os).unwrap()(&v.ident.to_string()),
     }
 }
 
@@ -190,11 +220,12 @@ fn to_camel_case(v: &str) -> String {
 }
 
 fn to_screaming_snake_case(v: &str) -> String {
-    v.char_indices().fold(String::with_capacity(v.len()), |mut s, (i, c)| {
-        if c.is_uppercase() && i != 0 {
-            s.push('_');
-        }
-        s.push(c.to_ascii_uppercase());
-        s
-    })
+    v.char_indices()
+        .fold(String::with_capacity(v.len()), |mut s, (i, c)| {
+            if c.is_uppercase() && i != 0 {
+                s.push('_');
+            }
+            s.push(c.to_ascii_uppercase());
+            s
+        })
 }
