@@ -3,6 +3,7 @@ name = "serde-enum"
 version = "0.1.0"
 edition = "2018"
 license = "MIT"
+repository = "https://github.com/sy1ntexx/serde-enum"
 description = "Automaticly generates stringserde implementation for enums"
 authors = ["sy1ntexx"]
 
